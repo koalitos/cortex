@@ -124,11 +124,12 @@ Isso vai:
 python3 ~/Dev/Rag/rag --serve
 ```
 
-Abre `http://localhost:7842` automaticamente. O grafo 3D é interativo:
+Abre `http://localhost:7842/viewer/` automaticamente. O grafo 3D é interativo:
 - **Arrastar** para orbitar, **scroll** para zoom
 - **Clicar** num nó para ver suas conexões no painel de detalhes
 - **Hover** para tooltip com nome, tipo e caminho do arquivo
 - **Sidebar** mostra a árvore de pastas real com funções aninhadas sob os arquivos
+- Botão **Sync** rescaneia o código do projeto atual (sem precisar rodar comando no terminal)
 - Botão **Memory** mostra o RESUMO.md do projeto
 - Botão **Logs** mostra os logs diários de sessão
 
@@ -164,22 +165,79 @@ REGRA ABSOLUTA: no início de cada sessão, ANTES de responder qualquer coisa, v
 
 O Claude lê o grafo, a memória e os logs **antes de cada resposta** — e sempre conhece o projeto sem você re-explicar.
 
-### Skills para Claude Code (opcional)
+### Skills para Claude Code
 
-Adicione no seu `~/.claude/CLAUDE.md` global para atalhos de slash command:
+Adicione no seu `~/.claude/CLAUDE.md` global para atalhos de slash command. Veja a seção **Salvar a sessão** logo abaixo para entender quando usar cada um.
 
-**`/salvar-grafo`** — re-sincroniza o grafo e adiciona um resumo de sessão no log do dia:
+**`/salvar-grafo`** — re-sincroniza o grafo e registra o que foi feito hoje:
+
+Execute este comando **no final da sua sessão** para:
+- Re-escanear o projeto (pega mudanças no código que aconteceram desde o último sync)
+- Atualizar o grafo automaticamente
+- Criar ou atualizar o log diário (`logs/AAAA-MM-DD.md`) com um resumo do que você trabalhou
+
+Exemplo: após implementar uma feature, rode `/salvar-grafo` para que o Claude saiba que o código mudou e registre o que foi feito no log da sessão.
+
 ```markdown
 # salvar-grafo
-Quando o usuário digitar `/salvar-grafo`, rode sync.py para o projeto atual e
-adicione um bloco de sessão em logs/AAAA-MM-DD.md com o que foi feito.
+Quando o usuário digitar `/salvar-grafo`:
+1. Rode python3 /Dev/Rag/scripts/sync.py no projeto atual (path vem do CLAUDE.md injetado)
+2. Crie ou atualize logs/AAAA-MM-DD.md com um bloco de sessão contendo:
+   - Data/hora
+   - Resumo: tarefa principal de hoje em 1-3 bullets
+   - Status: o que ficou pronto, o que ficou para fazer
+3. Imprima "✅ Grafo sincronizado e sessão registrada"
 ```
 
-**`/retomar-grafo`** — carrega o contexto completo do projeto no início da sessão:
+**`/retomar-grafo`** — carrega tudo que você fez antes em outro projeto:
+
+Execute este comando **no início de uma sessão com novo projeto** para:
+- Ler o último log de sessão do projeto anterior (saber onde parou)
+- Injetar o contexto do novo projeto no seu CLAUDE.md
+- Imprimir um resumo formatado do projeto, da stack, das funções principais e dos últimos 3 dias de trabalho
+
+Exemplo: você estava trabalhando em `~/Dev/projeto-A`, faz `/salvar-grafo` lá. Depois muda para `~/Dev/projeto-B`. Abre Claude e roda `/retomar-grafo` para carregar o contexto do projeto-B antes de começar.
+
 ```markdown
 # retomar-grafo
-Quando o usuário digitar `/retomar-grafo`, leia a memória RAG, o log diário recente
-e as stats do grafo, depois imprima um resumo de contexto formatado.
+Quando o usuário digitar `/retomar-grafo`:
+1. Detecte o projeto atual (path do CWD ou do git root)
+2. Leia memory/RESUMO.md + logs/AAAA-MM-DD.md (últimas 3 linhas)
+3. Injete no CLAUDE.md injetado pelo sync uma seção extra com:
+   - Stack do projeto
+   - Arquivos-chave e funções mais importantes
+   - Últimas sessões (logs dos últimos 3 dias)
+4. Imprima um bloco formatado resumindo tudo
+```
+
+#### Quando usar cada skill
+
+| Situação | Comando | O que faz |
+|----------|---------|----------|
+| **Terminei meu trabalho do dia** | `/salvar-grafo` | Rescaneia o código, atualiza o grafo e registra no log de sessão o que você fez |
+| **Voltei a um projeto depois de dias** | `/retomar-grafo` | Lê os logs das últimas sessões e injeta todo o contexto no início |
+| **Mudei de projeto no mesmo dia** | `/retomar-grafo` (no novo projeto) | Carrega o contexto do novo projeto antes de começar |
+| **Quero saber o status de tudo** | `python3 ~/Dev/Rag/rag --status` | Lista todos os projetos, última atualização, e stats |
+
+#### Fluxo recomendado
+
+```
+Sessão 1 — Projeto A
+├─ Abre Claude Code em ~/Dev/projeto-A
+├─ Trabalha no projeto
+└─ Ao final: `/salvar-grafo` ← registra o que fez
+
+Sessão 2 — Projeto B (dias depois)
+├─ Abre Claude Code em ~/Dev/projeto-B
+├─ Roda: `/retomar-grafo` ← carrega contexto antigo
+├─ Trabalha
+└─ Ao final: `/salvar-grafo` ← registra do projeto B
+
+Sessão 3 — Volta ao Projeto A
+├─ Abre Claude Code em ~/Dev/projeto-A
+├─ Roda: `/retomar-grafo` ← vê que deixou pendências em outro arquivo
+├─ Continua o trabalho sabendo onde parou
+└─ Ao final: `/salvar-grafo`
 ```
 
 ---
@@ -270,6 +328,7 @@ Seções que não podem ser detectadas automaticamente (`## Depende de`, `## Exp
 - **Partículas nas arestas de import** — pontos animados fluem pelas setas de dependência
 - **Sidebar com árvore de arquivos** — mesma estrutura de pastas do projeto, funções aninhadas
 - **Seletor de projeto** — dropdown suportando projetos ilimitados
+- **Botão Sync** — rescaneia o código sem sair da interface (roda sync.py automaticamente)
 - **Painel Memory** — clique em Memory para ler o RESUMO.md do projeto
 - **Logs de sessão** — clique em Logs para navegar pelos logs diários
 - **Busca** — encontra qualquer função, arquivo ou componente no grafo

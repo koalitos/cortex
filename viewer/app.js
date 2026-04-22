@@ -753,6 +753,52 @@ function exportPNG() {
   }, 'image/png');
 }
 
+// ── Sync Project ──────────────────────────────────────────────────────────
+
+async function syncProject() {
+  if (!currentProject) {
+    alert('Nenhum projeto selecionado.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-sync');
+  const originalText = btn.textContent.trim();
+  btn.disabled = true;
+  btn.textContent = 'Sincronizando…';
+
+  // Get project path from projects.json
+  const projData = projects[currentProject];
+  if (!projData || !projData.path) {
+    alert('Caminho do projeto não encontrado.');
+    btn.disabled = false;
+    btn.textContent = originalText;
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: projData.path })
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      alert(`✅ Projeto sincronizado com sucesso!\n\n${result.output.split('\n').slice(-5).join('\n')}`);
+      // Reload the graph
+      await loadProject(currentProject);
+    } else {
+      alert(`❌ Erro ao sincronizar:\n${result.error || result.output}`);
+    }
+  } catch (err) {
+    alert(`❌ Erro: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
 window.addEventListener('load', init);
 
 // Resize responsivo
