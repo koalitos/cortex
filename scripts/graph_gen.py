@@ -12,8 +12,8 @@ from pathlib import Path
 from datetime import datetime
 
 # Extensões suportadas
-CODE_EXTS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'}
-IGNORE_DIRS = {'node_modules', '.git', 'dist', 'build', '.next', '__pycache__', 'coverage'}
+CODE_EXTS = {'.py', '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.kt', '.java'}
+IGNORE_DIRS = {'node_modules', '.git', 'dist', 'build', '.next', '__pycache__', 'coverage', 'intermediates'}
 
 class GraphGenerator:
     def __init__(self, project_path: str, project_name: str):
@@ -116,12 +116,69 @@ class GraphGenerator:
             pass
         return result
 
+    def parse_kotlin(self, path: Path) -> dict:
+        """Extrair imports, funções e classes de arquivo Kotlin."""
+        result = {'imports': [], 'functions': [], 'classes': []}
+        try:
+            source = path.read_text(encoding='utf-8', errors='ignore')
+
+            # Imports: import com.package.Class
+            for m in re.finditer(r'\bimport\s+([\w.]+)', source):
+                pkg = m.group(1).split('.')[0]
+                result['imports'].append(pkg)
+
+            # Classes: class Name ou data class Name
+            for m in re.finditer(r'\b(?:data\s+)?(?:sealed\s+)?class\s+(\w+)', source):
+                result['classes'].append(m.group(1))
+
+            # Funções: fun name ou suspend fun name
+            for m in re.finditer(r'\b(?:suspend\s+)?fun\s+(\w+)\s*\(', source):
+                result['functions'].append(m.group(1))
+
+        except:
+            pass
+        return result
+
+    def parse_java(self, path: Path) -> dict:
+        """Extrair imports, funções e classes de arquivo Java."""
+        result = {'imports': [], 'functions': [], 'classes': []}
+        try:
+            source = path.read_text(encoding='utf-8', errors='ignore')
+
+            # Imports: import com.package.Class;
+            for m in re.finditer(r'\bimport\s+([\w.]+)', source):
+                pkg = m.group(1).split('.')[0]
+                result['imports'].append(pkg)
+
+            # Classes: public class Name, abstract class Name, etc
+            for m in re.finditer(r'\b(?:public\s+)?(?:abstract\s+)?(?:final\s+)?class\s+(\w+)', source):
+                result['classes'].append(m.group(1))
+
+            # Interfaces: public interface Name
+            for m in re.finditer(r'\b(?:public\s+)?interface\s+(\w+)', source):
+                result['classes'].append(m.group(1))
+
+            # Métodos: public void name(), private String getName(), etc
+            # Pattern: modifiers + return_type + name(
+            for m in re.finditer(r'(?:public|private|protected)?\s+(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?[\w<>]+\s+(\w+)\s*\(', source):
+                fn = m.group(1)
+                if fn not in ('if', 'for', 'while', 'switch', 'catch'):
+                    result['functions'].append(fn)
+
+        except:
+            pass
+        return result
+
     def analyze_file(self, path: Path):
         """Analisar arquivo e criar nós + arestas."""
         file_nid = self.file_node(path)
 
         if path.suffix == '.py':
             info = self.parse_python(path)
+        elif path.suffix == '.kt':
+            info = self.parse_kotlin(path)
+        elif path.suffix == '.java':
+            info = self.parse_java(path)
         else:
             info = self.parse_js_ts(path)
 
