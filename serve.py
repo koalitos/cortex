@@ -27,7 +27,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith('/api/sync'):
             self.handle_sync()
         else:
-            super().do_POST()
+            self.send_error(405, "Method Not Allowed")
 
     def handle_sync(self):
         """Run sync for a project and return status."""

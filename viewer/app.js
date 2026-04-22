@@ -753,11 +753,40 @@ function exportPNG() {
   }, 'image/png');
 }
 
+// ── Notifications ──────────────────────────────────────────────────────────
+
+let notificationTimeout = null;
+
+function showNotification(message, type = 'success') {
+  const toast = document.getElementById('notification-toast');
+  const icon = document.getElementById('toast-icon');
+  const content = document.getElementById('toast-content');
+
+  // Clear previous timeout
+  if (notificationTimeout) clearTimeout(notificationTimeout);
+
+  // Update content
+  content.textContent = message;
+  toast.className = `notification-toast ${type}`;
+  toast.classList.remove('hide');
+
+  // Auto-hide after 4 seconds
+  notificationTimeout = setTimeout(() => {
+    toast.classList.add('hide');
+  }, 4000);
+}
+
+function closeNotification() {
+  const toast = document.getElementById('notification-toast');
+  toast.classList.add('hide');
+  if (notificationTimeout) clearTimeout(notificationTimeout);
+}
+
 // ── Sync Project ──────────────────────────────────────────────────────────
 
 async function syncProject() {
   if (!currentProject) {
-    alert('Nenhum projeto selecionado.');
+    showNotification('Nenhum projeto selecionado.', 'error');
     return;
   }
 
@@ -769,7 +798,7 @@ async function syncProject() {
   // Get project path from projects.json
   const projData = projects[currentProject];
   if (!projData || !projData.project_path) {
-    alert('Caminho do projeto não encontrado. Execute sync.py uma vez para registrar o caminho.');
+    showNotification('Caminho do projeto não encontrado. Execute sync.py uma vez para registrar o caminho.', 'error');
     btn.disabled = false;
     btn.textContent = originalText;
     return;
@@ -785,14 +814,14 @@ async function syncProject() {
     const result = await response.json();
 
     if (result.success) {
-      alert(`✅ Projeto sincronizado com sucesso!\n\n${result.output.split('\n').slice(-5).join('\n')}`);
+      showNotification('✓ Projeto sincronizado com sucesso!', 'success');
       // Reload the graph
       await loadProject(currentProject);
     } else {
-      alert(`❌ Erro ao sincronizar:\n${result.error || result.output}`);
+      showNotification(`✗ Erro ao sincronizar: ${result.error || result.output}`, 'error');
     }
   } catch (err) {
-    alert(`❌ Erro: ${err.message}`);
+    showNotification(`✗ Erro: ${err.message}`, 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
