@@ -768,8 +768,8 @@ async function syncProject() {
 
   // Get project path from projects.json
   const projData = projects[currentProject];
-  if (!projData || !projData.path) {
-    alert('Caminho do projeto não encontrado.');
+  if (!projData || !projData.project_path) {
+    alert('Caminho do projeto não encontrado. Execute sync.py uma vez para registrar o caminho.');
     btn.disabled = false;
     btn.textContent = originalText;
     return;
@@ -779,7 +779,7 @@ async function syncProject() {
     const response = await fetch('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: projData.path })
+      body: JSON.stringify({ path: projData.project_path })
     });
 
     const result = await response.json();

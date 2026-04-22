@@ -188,7 +188,7 @@ def analyze_project(project_path: Path) -> dict:
     return info
 
 
-def build_resumo(name: str, info: dict, graph_stats: dict, graph_nodes: list) -> str:
+def build_resumo(name: str, info: dict, graph_stats: dict, graph_nodes: list, project_path: Path = None) -> str:
     """Monta o conteúdo do RESUMO.md com os dados extraídos."""
     lines = [f'# {name}', '']
 
@@ -262,6 +262,10 @@ def build_resumo(name: str, info: dict, graph_stats: dict, graph_nodes: list) ->
         '',
     ]
 
+    # Adicionar caminho do projeto como comentário HTML (invisível no MD, legível pelo sync)
+    if project_path:
+        lines.append(f'<!-- RAG_PROJECT_PATH: {project_path.resolve()} -->')
+
     return '\n'.join(lines)
 
 
@@ -321,7 +325,7 @@ def sync_project(project_path: Path):
     if not resumo.exists():
         print("\n🔍 Analisando projeto para gerar memory/RESUMO.md...")
         info = analyze_project(project_path)
-        content = build_resumo(name, info, graph_stats_early, graph_nodes)
+        content = build_resumo(name, info, graph_stats_early, graph_nodes, project_path)
         resumo.write_text(content)
         print(f"   Stack detectada: {', '.join(info['stack'][:4]) or '(vazia)'}")
         print(f"   → {resumo}")
@@ -345,6 +349,15 @@ def sync_project(project_path: Path):
             )
         else:
             existing = existing.rstrip() + '\n\n' + stats_block
+
+        # Adicionar ou atualizar o comentário com o caminho do projeto
+        if project_path:
+            project_comment = f'<!-- RAG_PROJECT_PATH: {project_path.resolve()} -->'
+            # Remover comentário antigo se houver
+            existing = re.sub(r'\n*<!-- RAG_PROJECT_PATH: .+? -->\n*', '', existing)
+            # Adicionar novo comentário no final
+            existing = existing.rstrip() + '\n\n' + project_comment
+
         resumo.write_text(existing)
         print(f"\n📝 memory/RESUMO.md atualizado (stats do sync)")
 
@@ -571,12 +584,24 @@ def update_projects_index(name: str, rag_dir: Path):
         reverse=True,
     )
 
+    # Recuperar o caminho real do projeto (se houver um CLAUDE.md injetado lá)
+    # Procura no git config ou cria um marcador no RESUMO.md
+    project_path_str = None
+    resumo = rag_dir / 'memory' / 'RESUMO.md'
+    if resumo.exists():
+        content = resumo.read_text()
+        import re as _re2
+        m = _re2.search(r'\n<!-- RAG_PROJECT_PATH: (.+?) -->', content)
+        if m:
+            project_path_str = m.group(1)
+
     index['projects'][name] = {
-        'name':      name,
-        'rag_path':  str(rag_dir.relative_to(RAG_ROOT)),
-        'last_sync': datetime.now().isoformat(),
-        'stats':     stats,
-        'log_dates': log_dates,
+        'name':       name,
+        'rag_path':   str(rag_dir.relative_to(RAG_ROOT)),
+        'project_path': project_path_str,  # caminho real do projeto (se detectado)
+        'last_sync':  datetime.now().isoformat(),
+        'stats':      stats,
+        'log_dates':  log_dates,
     }
 
     index_file.write_text(json.dumps(index, indent=2, ensure_ascii=False))
